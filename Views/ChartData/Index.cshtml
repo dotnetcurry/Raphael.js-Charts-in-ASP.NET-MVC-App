@@ -1,0 +1,218 @@
+﻿
+@{
+    ViewBag.Title = "Index";
+}
+
+<style type="text/css">
+    table {
+      width:100%;
+    }
+    #dvLeft {
+       height:400px;
+    }
+    #dvChart {
+      height:800px;
+      width:800px;
+      background-color:azure;
+    }
+    select {
+      width:140px;
+    }
+    #tblvalues,td {
+       border:double;
+    }
+    thead {
+      background-color:azure;
+    }
+</style>
+
+
+<script src="~/Scripts/jquery-2.1.4.min.js"></script>
+<script src="~/Scripts/raphael-min.js"></script>
+<script src="~/Scripts/g.raphael-min.js"></script>
+<script src="~/Scripts/g.raphael.js"></script>
+<script src="~/Scripts/g.pie-min.js"></script>
+<script src="~/Scripts/g.bar-min.js"></script>
+
+<h1>Customerwise Orders</h1>
+<hr />
+
+<table>
+    <tr>
+        <td>
+           <div id="dvLeft">
+               <h3>Fetch Record Page Index (Each Page will get 10 Records)</h3>
+               <select id="lstRecPages"></select>
+               <hr />
+               <h3>Select the chart Type:</h3>
+               <select id="lstCharttype">
+                   <option value="0">Select Chart</option>
+                   <option value="1">Pie Chart</option>
+                   <option value="2">Bar Chart</option>
+               </select>
+           </div>
+            
+            
+        </td>
+        <td>
+            <div id="dvChart"></div>
+        </td>
+        <td>
+            <div id="dvData">
+                 
+            </div>
+        </td>
+    </tr>
+</table>
+
+<div id="dvMsg"></div>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+
+        loadPages();
+
+        //The Function to load No. of Pages for the data received from the server.
+        //Each Page has the default size of 10 records
+
+        function loadPages() {
+            var url = "/api/ChartAPI";
+            $.ajax({
+                url: url,
+                type: "GET"
+            }).done(function (resp) {
+
+                //Get the number of pages. 
+                //Consider here the page size as 10
+
+                var pgSize = resp.length / 10;
+
+                //If the Result is float, then Round it to 1 
+                if (isPgSizeFloat(pgSize)) {
+                    pgSize = Math.round(pgSize);
+                }
+
+                //Add Pages in the DropDown for record Pages
+                var pgHtml = "";
+
+                for (var i = 1; i <= pgSize; i++) {
+                    pgHtml += "<option value=" + i + ">" + i + "</option>";
+                }
+                //Add Page Numbers
+                $("#lstRecPages").append(pgHtml);
+            }).error(function () {
+                $("#dvMsg").html("Error " + err.status);
+            });
+        };
+
+        //function to check for float
+        function isPgSizeFloat(pg) {
+            return pg === Number(pg) && pg % 1 !== 0;
+        };
+
+        //Function to Draw the Charts
+        function drawChart(chartindex, pageindex) {
+            var recordperpage = 10;
+            //The Pagination for fetching data
+            var url = "/api/ChartAPI?$top=" + recordperpage + "&&$skip=" + (recordperpage * pageindex);
+            $.ajax({
+                url: url,
+                type: "GET"
+            }).done(function (resp) {
+                //The Array of Legends for the Chart
+                var legends = [];
+                //The Array of Values for the Chart
+                var values = [];
+                $.each(resp, function (idx, item) {
+                    legends.push(item.ContactName);
+                    values.push(item.TotalOrders);
+                });
+                
+                loadDataInTable(resp);
+
+                if (chartindex == 1) {
+                    drawPieChart(legends, values);
+                } else {
+                    drawBarchart(legends, values);
+                }
+            }).error(function (err) {
+                $("#dvMsg").html("Error " + err.status);
+            });
+        };
+
+        //Function for loading values
+        //In Values
+        function loadDataInTable(data) {
+            $("#dvData").html("");
+
+            var trs = "<table><thead><tr><td>Name</td><td>TotalOrders</td></tr></thead>";
+            $.each(data, function (idx, d) {
+                trs += "<tr><td>" + d.ContactName + "</td><td>" + d.TotalOrders + "</td></tr>";
+            });
+            trs += "</table>";
+            
+            $("#dvData").append(trs);
+        };
+
+        //The following function is used to draw chart based on chart type
+        $("#lstCharttype").on('keyup change', function () {
+            var val = $(this).find(":selected").val();
+            //The Page Index
+            var pgIndex = $("#lstRecPages option:selected").val();
+            
+            $("#dvChart").html("");
+            if (val !== 0) {
+                drawChart(val, pgIndex);
+            }
+        });
+
+        //The following function can also be used to draw chart for selected page index
+        $("#lstRecPages").on('keyup change',function(){
+            var val = $("#lstCharttype option:selected").val();
+            var pgIndex = $(this).find(":selected").val();
+            $("#dvChart").html("");
+            if (val > 0) {
+                drawChart(val, pgIndex);
+            }
+        });
+
+            //Function to Draw PIE chart
+            //With center as 400,400 and redius as 200
+            function drawPieChart(legends, values) {
+                var r = Raphael("dvChart");
+                r.piechart(400, 400, 200, values, { legend: legends, legendpos: 'east'});
+            };
+
+        //Function to Draw BAR chart
+        //With x and y as 10,10
+            function drawBarchart(legends, values) {
+               var r = Raphael("dvChart");
+              
+               var b = r.barchart(30, 20, 400, 560, values, { stacked: true, type: "round",gutter:"20%" });//.label([['V1', 'V2']], false);
+
+                //Creating the Custom Labels
+
+               b.customXLabel = function (labels) {
+
+                   this.labels = r.set();
+                   for (var i = 0; i < this.bars.length; i++) {
+                       str = labels[i].split(" ");
+                       x = this.bars[i].x;
+                       y = this.bars[i].y+ this.bars[i].h + 10;
+                       r.text(x, y, str[0]).attr("font", "10px sans-serif");
+                   }
+                   return this;
+               };
+               b.customXLabel(legends);
+            };
+        });
+   
+</script>
+
+
+
+
+
+
+
+
